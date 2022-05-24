@@ -15,11 +15,8 @@ class FileType(Enum):
 
 time_zone = 'UTC'
 days_back = 90
-<<<<<<< HEAD
-days_back_Vacuum = 90
-=======
-days_back_Vacuum = 14
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+days_back_Vacuum = 90 #DEV
+#days_back_Vacuum = 14 #DEV2
 
 # COMMAND ----------
 
@@ -120,11 +117,6 @@ map_temperature_range_details_path='/mnt/sail/silver/gld360/inbound/map_temperat
 wh_wip_mapping_activity_path = '/mnt/sail/silver/gld360/inbound/wh_wip_mapping_activity'
 
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 dim_item_path='/mnt/sail/silver/gld360/inbound/dim_item'
 dim_source_system_path='/mnt/sail/silver/gld360/inbound/dim_source_system'
 dim_warehouse_path='/mnt/sail/silver/gld360/inbound/dim_warehouse'
@@ -413,11 +405,8 @@ source_optimize = {
 'optimize_column' :"",
 'analyze_column' :"",
 'hwm_column' :"",
-<<<<<<< HEAD
-'file_size':33554432}  
-=======
-'file_size':33554432}
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+'file_size':33554432} #DEV 
+'file_size':33554432} #DEV2
 ,
 'wh_wip_mapping_activity': {'table_name' : 'silver.wh_wip_maping_activity' ,
 'optimize_column' :"",
@@ -426,11 +415,8 @@ source_optimize = {
 'file_size':33554432}
 ,
 'fact_order_dim_inc': {'table_name' : 'gold.fact_order_dim_inc' ,
-<<<<<<< HEAD
-'optimize_column' :"SOURCE_SYSTEM_KEY,ups_order_number, order_sduk",
-=======
-'optimize_column' :"SOURCE_SYSTEM_KEY, order_sduk, ups_order_number",
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+'optimize_column' :"SOURCE_SYSTEM_KEY,ups_order_number, order_sduk", #DEV
+#'optimize_column' :"SOURCE_SYSTEM_KEY, order_sduk, ups_order_number", #DEV2
 'analyze_column' :"",
 'file_size':33554432}
 ,
@@ -440,11 +426,8 @@ source_optimize = {
 'file_size':33554432}
 ,
 'digital_summary_milestone': {'table_name' : 'gold.digital_summary_milestone' ,
-<<<<<<< HEAD
-'optimize_column' :"SourceSystemKey,order_sduk",
-=======
-'optimize_column' :"order_sduk",
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+'optimize_column' :"SourceSystemKey,order_sduk", #DEV
+#'optimize_column' :"order_sduk", DEV2
 'analyze_column' :"",
 'file_size':33554432}
 ,
@@ -459,29 +442,20 @@ source_optimize = {
 'file_size':33554432}
 ,
 'digital_summary_transportation_callcheck': {'table_name' : 'gold.digital_summary_transportation_callcheck' ,
-<<<<<<< HEAD
-'optimize_column' :"SourceSystemKey,UPSORDERNUMBER",
-=======
-'optimize_column' :"SourceSystemKey,hash_key",
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+'optimize_column' :"SourceSystemKey,UPSORDERNUMBER", #DEV
+#'optimize_column' :"SourceSystemKey,hash_key", #DEV2
 'analyze_column' :"",
 'file_size':33554432}
 ,
 'digital_summary_transportation_references': {'table_name' : 'gold.digital_summary_transportation_references' ,
-<<<<<<< HEAD
-'optimize_column' :"SourceSystemKey,UPSORDERNUMBER",
-=======
-'optimize_column' :"SourceSystemKey,hash_key",
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+'optimize_column' :"SourceSystemKey,UPSORDERNUMBER", #DEV
+#'optimize_column' :"SourceSystemKey,hash_key",#DEV2
 'analyze_column' :"",
 'file_size':33554432}
 ,
 'digital_summary_transportation_rates_charges': {'table_name' : 'gold.digital_summary_transportation_rates_charges' ,
-<<<<<<< HEAD
-'optimize_column' :"SourceSystemKey,UpsOrderNumber",
-=======
-'optimize_column' :"SourceSystemKey,hash_key",
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+'optimize_column' :"SourceSystemKey,UpsOrderNumber",#DEV
+#'optimize_column' :"SourceSystemKey,hash_key", #DEV2
 'analyze_column' :"",
 'file_size':33554432}
 ,
@@ -491,11 +465,8 @@ source_optimize = {
 'file_size':33554432}
 ,
 'digital_summary_orders': {'table_name' : 'gold.digital_summary_orders' ,
-<<<<<<< HEAD
-'optimize_column' :"SourceSystemKey,UPSOrderNumber,order_sduk",
-=======
-'optimize_column' :"SourceSystemKey,order_sduk,UPSOrderNumber",
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+'optimize_column' :"SourceSystemKey,UPSOrderNumber,order_sduk",#DEV
+#'optimize_column' :"SourceSystemKey,order_sduk,UPSOrderNumber", #DEV2
 'analyze_column' :"",
 'file_size':33554432}
 ,
@@ -505,20 +476,14 @@ source_optimize = {
 'file_size':33554432}
 ,
 'digital_summary_order_lines_details': {'table_name' : 'gold.digital_summary_order_lines_details' ,
-<<<<<<< HEAD
-'optimize_column' :"SourceSystemKey,UPSOrderNumber",
-=======
-'optimize_column' :"SourceSystemKey,order_sduk",
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+'optimize_column' :"SourceSystemKey,UPSOrderNumber", #DEV
+#'optimize_column' :"SourceSystemKey,order_sduk",#DEV2
 'analyze_column' :"",
 'file_size':33554432}
 ,
 'digital_summary_exceptions': {'table_name' : 'gold.digital_summary_exceptions' ,
-<<<<<<< HEAD
-'optimize_column' :"SourceSystemKey,UPSOrderNumber,TRANSPORTATION_EXCEPTION_SDUK",
-=======
-'optimize_column' :"SourceSystemKey,TRANSPORTATION_EXCEPTION_SDUK",
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+'optimize_column' :"SourceSystemKey,UPSOrderNumber,TRANSPORTATION_EXCEPTION_SDUK", #DEV
+'optimize_column' :"SourceSystemKey,TRANSPORTATION_EXCEPTION_SDUK", #DEV2
 'analyze_column' :"",
 'file_size':33554432},
 'digital_summary_inbound_line': {'table_name' : 'gold.digital_summary_inbound_line' ,
@@ -526,11 +491,9 @@ source_optimize = {
 'analyze_column' :"",
 'file_size':33554432}
 <<<<<<< HEAD
-}
+} #DEV
 
 # COMMAND ----------
 
-account_id= """ ('E648FA6F-6253-428E-8AC9-201E3EF83B91','3DAEB74F-FA36-47D7-AC7A-FDBDC4341357','DD650B97-9291-498B-BA98-D6680C73CA3C','B862E947-D271-46DE-BD95-049617B58A91','6F96FCED-32F9-456F-9DF4-1A97845E7675','1EEF1B1A-A415-43F3-88C5-2D5EBC503529','7EBA92DE-8358-46D0-B8BA-B4D9735396EA','C6BC6B0C-6B96-4466-8F8D-F9EB68B3A48D','0C061A26-767B-436C-B78E-A65DBE24E2B3','870561E1-A974-483B-AA0D-A724C5D402C9','E937415E-5CA0-4A4C-AD26-89DC4DF7FE69','9177518A-3C1F-4AD4-9AF2-13E69A3B0EC3','5CA0AAFF-1334-40CC-BEAC-BA663F32626A','A2B1487C-3878-4A06-898B-4EA06DF022BF','DD650B97-9291-498B-BA98-D6680C73CA3C') """
-=======
-}
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+account_id= """ ('E648FA6F-6253-428E-8AC9-201E3EF83B91','3DAEB74F-FA36-47D7-AC7A-FDBDC4341357','DD650B97-9291-498B-BA98-D6680C73CA3C','B862E947-D271-46DE-BD95-049617B58A91','6F96FCED-32F9-456F-9DF4-1A97845E7675','1EEF1B1A-A415-43F3-88C5-2D5EBC503529','7EBA92DE-8358-46D0-B8BA-B4D9735396EA','C6BC6B0C-6B96-4466-8F8D-F9EB68B3A48D','0C061A26-767B-436C-B78E-A65DBE24E2B3','870561E1-A974-483B-AA0D-A724C5D402C9','E937415E-5CA0-4A4C-AD26-89DC4DF7FE69','9177518A-3C1F-4AD4-9AF2-13E69A3B0EC3','5CA0AAFF-1334-40CC-BEAC-BA663F32626A','A2B1487C-3878-4A06-898B-4EA06DF022BF','DD650B97-9291-498B-BA98-D6680C73CA3C') """ #DEV
+#} DEV2
