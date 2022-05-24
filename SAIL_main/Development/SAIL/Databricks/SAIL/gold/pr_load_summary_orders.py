@@ -572,17 +572,12 @@ def get_query7():
   FTO.TemperatureRange_UOM,
   0 Is_healthcare,
   FTO.order_sduk,
-<<<<<<< HEAD
   FTO.TRANSPORTATION_SDUK,
   FTO.is_deleted,
   FTO.UTC_ORDER_PLACED_MONTH_part_key,
   row_number() over (PARTITION BY FTO.SourceSystemKey,FTO.UPSOrderNumber,FTO.order_sduk 
                              ORDER BY FTO.TRANSPORTATION_SDUK NULLS FIRST
                              ) as transport_rn
-=======
-  FTO.is_deleted
-  ,FTO.UTC_ORDER_PLACED_MONTH_part_key
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 FROM SUMMARY_ORDERS FTO      
 LEFT JOIN FTOL FTOL ON (FTO.SourceSystemKey = FTOL.SOURCE_SYSTEM_KEY AND FTO.UPSOrderNumber = FTOL.UPS_ORDER_NUMBER)       
 LEFT JOIN Milestone ML ON (FTO.SourceSystemKey = ML.SourceSystemKey AND  FTO.AccountId = ML.AccountId AND FTO.UPSOrderNumber = ML.UPSOrderNumber)      
