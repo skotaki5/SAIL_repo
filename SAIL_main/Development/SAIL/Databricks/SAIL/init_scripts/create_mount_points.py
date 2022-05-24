@@ -3,7 +3,6 @@
 #sas='?sv=2020-08-04&ss=bfqt&srt=sco&sp=rwdlacupx&se=2030-03-02T15:32:05Z&st=2022-03-02T07:32:05Z&spr=https&sig=SZS%2FnIy0%2BNK2y%2B8%2B0xUscKokdBy%2BbiaY97Ersy7RK%2Bo%3D' #DEV need to check why it is hardcoded
 storage_account_name=''
 sas=''
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 
 # COMMAND ----------
 
@@ -28,7 +27,7 @@ except:
 
 # COMMAND ----------
 
-# MAGIC %fs   #DEV
+# MAGIC %fs   --DEV
 
-# MAGIC ls "/mnt/sail"  #DEV2
-# MAGIC ls "/mnt/sail/silver" #DEV2
+# MAGIC ls "/mnt/sail"  --DEV2
+# MAGIC ls "/mnt/sail/silver" --DEV2
