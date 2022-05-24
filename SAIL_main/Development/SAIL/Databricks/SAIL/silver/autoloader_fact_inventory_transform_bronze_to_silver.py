@@ -3,10 +3,7 @@
 # import logging
 from pyspark.sql.types import StructType    
 from pyspark.sql import Window
-<<<<<<< HEAD
-from pyspark.sql.functions import element_at
-=======
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+from pyspark.sql.functions import element_at #DEV
 
 # COMMAND ----------
 
@@ -115,11 +112,8 @@ def run_append():
         src_df =src_df.withColumn("is_deleted",  lit(0))
         
         logger.debug("Adding filename")
-<<<<<<< HEAD
-        src_df =src_df.withColumn("dl_file_name",  element_at(split(input_file_name(), "/"),-1))
-=======
-        src_df =src_df.withColumn("dl_file_name",  split(input_file_name(), "/").getItem(size(split(input_file_name(), "/")) - 1))
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+        src_df =src_df.withColumn("dl_file_name",  element_at(split(input_file_name(), "/"),-1)) #DEV
+        #src_df =src_df.withColumn("dl_file_name",  split(input_file_name(), "/").getItem(size(split(input_file_name(), "/")) - 1)) #DEV2
       
         logger.debug("Adding audit columns")
         src_df=add_audit_columns(src_df,pid,datetime.now(),datetime.now())
