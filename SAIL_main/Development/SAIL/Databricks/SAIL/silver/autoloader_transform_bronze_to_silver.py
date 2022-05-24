@@ -3,10 +3,7 @@
 #imports
 from pyspark.sql.types import StructType    
 from pyspark.sql import Window
-<<<<<<< HEAD
-from pyspark.sql.functions import element_at
-=======
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+from pyspark.sql.functions import element_at #DEV
 
 # COMMAND ----------
 
@@ -136,11 +133,8 @@ def upsertToDelta(microBatchOutputDf,batchId):
         microBatchOutputDf = microBatchOutputDf.withColumn("dl_hash", sha1_concat(hash_col))
       
         logger.debug("Adding filename")
-<<<<<<< HEAD
-        microBatchOutputDf =microBatchOutputDf.withColumn("dl_file_name",  element_at(split(input_file_name(), "/"),-1))
-=======
-        microBatchOutputDf =microBatchOutputDf.withColumn("dl_file_name",  split(input_file_name(), "/").getItem(size(split(input_file_name(), "/")) - 1))
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+        microBatchOutputDf =microBatchOutputDf.withColumn("dl_file_name",  element_at(split(input_file_name(), "/"),-1))  #DEV
+        #microBatchOutputDf =microBatchOutputDf.withColumn("dl_file_name",  split(input_file_name(), "/").getItem(size(split(input_file_name(), "/")) - 1)) DEV2
       
         logger.debug("Adding additional columns")
         microBatchOutputDf = add_additional_columns(microBatchOutputDf,additional_custom_column)
