@@ -68,10 +68,6 @@ tracking_job_list=['sail_load','optimize_sail_load']
 check=1
 timeout=0
 timeout_threshhold = 2*60*60
-<<<<<<< HEAD
-=======
-
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 while(check and timeout < timeout_threshhold):
     check=0
     r=requests.get(tracking_endpoint, headers=headers).json()
@@ -92,10 +88,3 @@ restart_cluster()
         
 
     
-<<<<<<< HEAD
-=======
-
-
-# COMMAND ----------
-
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
