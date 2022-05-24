@@ -68,20 +68,12 @@ def get_delta_query(hwm):
         as
          select ups_order_number from {fact_order_dim_inc} where dl_update_timestamp>='{hwm}'
         union 
-<<<<<<< HEAD
           select case when NVL(FTTR.TRANS_ONLY_FLAG,'NULL') = 'NON_TRANS' and UPS_WMS_ORDER_NUMBER is not null 
                          then  UPS_WMS_ORDER_NUMBER
                          else UPS_ORDER_NUMBER 
                  end as ups_order_number 
           from {fact_transportation} FTTR
           where  dl_update_timestamp>='{hwm}'
-=======
-          select UPS_WMS_ORDER_NUMBER as ups_order_number  from {fact_transportation} FTTR
-          where NVL(FTTR.TRANS_ONLY_FLAG,'NULL') <> 'TRANS ONLY'  and UPS_WMS_ORDER_NUMBER is not null and dl_update_timestamp>='{hwm}'
-        union 
-          select UPS_ORDER_NUMBER  from {fact_transportation} FTTR
-            where NVL(FTTR.TRANS_ONLY_FLAG,'NULL') = 'TRANS ONLY'  and UPS_ORDER_NUMBER is not null and dl_update_timestamp>='{hwm}'
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
        union
          select ups_order_number  from {fact_transportation_callcheck}   where dl_update_timestamp>='{hwm}'
         """.format(**source_tables,hwm=hwm)
@@ -100,15 +92,9 @@ as SELECT
     FTO.GLD_ACCOUNT_MAPPED_KEY,            
     FTO.DP_SERVICELINE_KEY,
 	FTO.DP_ORGENTITY_KEY,
-<<<<<<< HEAD
     FTO.FacilityId,             
     FTO.SOURCE_SYSTEM_KEY,             
 	FTO.SOURCE_SYSTEM_NAME,               
-=======
-    WSE.GLD_WAREHOUSE_MAPPED_KEY,             
-    FTO.SOURCE_SYSTEM_KEY,             
-	SS.SOURCE_SYSTEM_NAME,               
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
     FTTR.UPS_ORDER_NUMBER AS UPS_TRANSPORT_ORDER_NUMBER, 
 	FTTR.SOURCE_SYSTEM_KEY AS UPS_TRANSPORT_SOURCE_SYSTEM_KEY,
     FTO.TRANSACTION_TYPE_ID AS TransactionTypeId,
@@ -118,12 +104,9 @@ as SELECT
     concat(FTTR.SOURCE_SYSTEM_KEY,'||',FTTR.TRANSPORTATION_SDUK) as TRANSPORTATION_SDUK
 FROM {fact_order_dim_inc} FTO
 INNER JOIN delta_fetch_tv FTV on (FTV.ups_order_number= FTO.UPS_ORDER_NUMBER)
-<<<<<<< HEAD
-=======
 INNER JOIN {dim_warehouse}  WSE ON  FTO.WAREHOUSE_KEY = WSE.WAREHOUSE_KEY   
            AND FTO.SOURCE_SYSTEM_KEY = WSE.SOURCE_SYSTEM_KEY  
 INNER JOIN {dim_source_system}  SS ON SS.SOURCE_SYSTEM_KEY=FTO.SOURCE_SYSTEM_KEY
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 LEFT JOIN {fact_transportation} FTTR  ON       
            (CASE WHEN FTTR.TRANS_ONLY_FLAG <> 'TRANS ONLY'  THEN   NVL(FTTR.UPS_WMS_SOURCE_SYSTEM_KEY,FTO.SOURCE_SYSTEM_KEY)  ELSE FTTR.SOURCE_SYSTEM_KEY END = FTO.SOURCE_SYSTEM_KEY       
         AND CASE WHEN FTTR.TRANS_ONLY_FLAG <> 'TRANS ONLY'  THEN FTTR.UPS_WMS_ORDER_NUMBER ELSE FTTR.UPS_ORDER_NUMBER END = FTO.UPS_ORDER_NUMBER)   
@@ -175,11 +158,7 @@ def get_query():
     FTC.UPS_ORDER_NUMBER as UPSORDERNUMBER,
 	FTC.SOURCE_SYSTEM_KEY as SOURCESYSTEMKEY,
 	FTO.GLD_ACCOUNT_MAPPED_KEY as ACCOUNTID,
-<<<<<<< HEAD
 	FTO.FACILITYID,
-=======
-	DMW.GLD_WAREHOUSE_MAPPED_KEY as FACILITYID,
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 	FTO.DP_SERVICELINE_KEY as DP_SERVICELINE_KEY,
 	FTO.DP_ORGENTITY_KEY as DP_ORGENTITY_KEY,
 	FTC.LOAD_ID as LOADID,
@@ -189,10 +168,6 @@ def get_query():
 	FTC.COUNTRYCODE as TEMPERATURE_COUNTRY,
 	FTC.IS_TEMPERATURE as IS_TEMPERATURE,
 	FTC.COMPLETE_DATE as TEMPERATURE_DATETIME,
-<<<<<<< HEAD
-=======
-    FTC.ETL_BATCH_NUMBER
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 	FTC.ACTIVITYTYPE as ACTIVITYTYPE,
     FTC.STATUSDETAILTYPE as STATUSDETAILTYPE,
 	CASE WHEN NVL(TMP.IS_LATEST_TEMPERATURE,'')='' THEN 'N' ELSE TMP.IS_LATEST_TEMPERATURE END AS IS_LATEST_TEMPERATURE
@@ -213,21 +188,13 @@ def get_query():
     ,FTO.TRANSPORTATION_SDUK
     ,FTC.CALLCHECK_SDUK as CALLCHECK_SDUK
     ,0 is_deleted
-<<<<<<< HEAD
     ,row_number() over (PARTITION BY FTC.SOURCE_SYSTEM_KEY,FTC.UPS_ORDER_NUMBER,FTO.order_sduk,FTC.CALLCHECK_SDUK 
                              ORDER BY FTO.TRANSPORTATION_SDUK NULLS FIRST
                              ) as transport_rn
-=======
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 	FROM {var_fact_order_summary_tv} FTO
 		INNER JOIN {fact_transportation_callcheck}  FTC
 			ON CASE WHEN IS_INBOUND IN (1,2) THEN FTO.UPS_ORDER_NUMBER ELSE FTO.UPS_TRANSPORT_ORDER_NUMBER END = FTC.UPS_ORDER_NUMBER 
 		     AND CASE WHEN IS_INBOUND IN (1,2) THEN FTO.SOURCE_SYSTEM_KEY ELSE  FTO.UPS_TRANSPORT_SOURCE_SYSTEM_KEY END = FTC.SOURCE_SYSTEM_KEY
-<<<<<<< HEAD
-=======
-	INNER JOIN {dim_warehouse}  DMW
-			ON FTC.SOURCE_SYSTEM_KEY = DMW.SOURCE_SYSTEM_KEY AND FTC.WAREHOUSE_KEY = DMW.WAREHOUSE_KEY
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 	LEFT JOIN {var_temp_call_check} TMP
 		ON CASE WHEN IS_INBOUND IN (1,2) THEN FTO.UPS_ORDER_NUMBER ELSE FTO.UPS_TRANSPORT_ORDER_NUMBER END = TMP.UPS_ORDER_NUMBER				--UPSGLD-11400 
 		     AND CASE WHEN IS_INBOUND IN (1,2) THEN FTO.SOURCE_SYSTEM_KEY ELSE  FTO.UPS_TRANSPORT_SOURCE_SYSTEM_KEY END = TMP.SOURCE_SYSTEM_KEY	--UPSGLD-11400 
@@ -278,11 +245,7 @@ def main():
             src_df = spark.sql(get_query())
             
             ##################### generating hash key  #############################
-<<<<<<< HEAD
             hash_key_columns = ['SOURCESYSTEMKEY','UPSORDERNUMBER','ORDER_SDUK','transport_rn','CALLCHECK_SDUK']
-=======
-            hash_key_columns = ['SOURCESYSTEMKEY','ACCOUNTID','FACILITYID','UPSORDERNUMBER','ORDER_SDUK','TRANSPORTATION_SDUK','CALLCHECK_SDUK']
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
             logger.debug(f"columns: {hash_key_columns}")
         
             logger.debug("Adding hash_key")
@@ -303,11 +266,7 @@ def main():
             logger.debug("Adding audit columns")
             src_df = add_audit_columns(src_df, pid,datetime.now(),datetime.now())
         
-<<<<<<< HEAD
             primary_keys = ['SOURCESYSTEMKEY','UPSORDERNUMBER','ORDER_SDUK','transport_rn','CALLCHECK_SDUK']
-=======
-            primary_keys = ['hash_key']
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
             logger.debug('primary_keys: {primary_keys}'.format(primary_keys=primary_keys))
             
             logger.info(f'Merging to delta path: {digital_summary_transportation_callcheck_path}')
@@ -344,7 +303,4 @@ main()
 
 # COMMAND ----------
 
-<<<<<<< HEAD
 
-=======
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
