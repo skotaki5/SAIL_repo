@@ -1,8 +1,5 @@
 # Databricks notebook source
-<<<<<<< HEAD
 # MAGIC 
-=======
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 # MAGIC %md
 # MAGIC Author           : Arpan Bhardwaj  </br>
 # MAGIC Description      : This notebook is to load summary_milestone_activity table. </br>
@@ -165,16 +162,10 @@ SELECT
   FA.PROOF_OF_DELIVERY_DATE_TIME,--UPSGLD-14945
   FA.LATITUDE, --UPSGLD-14945
   FA.LONGITUDE, --UPSGLD-14945
-<<<<<<< HEAD
   FA.ACTIVITY_STATUS,
   MA.MilestoneName,      
   MA.ActivityCode,      
   MA.ActivityName,
-=======
-  MA.MilestoneName,      
-  MA.ActivityCode,      
-  MA.ActivityName,      
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
   MA.Milestone_Completion_Flag,  
   FA.activity_month_part_key
 FROM {fact_milestone_activity} FA 
@@ -241,12 +232,8 @@ AS
   ,cast(NULL as int)                                   AS MilestoneId              
   ,TM.MilestoneName                                    AS MilestoneName                  
   ,cast(NULL as int)                                   AS ActivityId                      
-<<<<<<< HEAD
   ,ActivityName                                        AS ActivityName  
   ,ACTIVITY_STATUS                                     AS ACTIVITY_STATUS
-=======
-  ,ActivityName                                        AS ActivityName                     
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
   ,ACTIVITY_DATE                                       AS ActivityDate               
   ,CASE WHEN ACTIVITY_DATE IS NULL 
            THEN 'N' 
@@ -288,12 +275,8 @@ SELECT
   FTO.TransactionTypeId,
   FA.MilestoneName,      
   FA.ActivityCode,      
-<<<<<<< HEAD
   FA.ActivityName,
   FA.ACTIVITY_STATUS,
-=======
-  FA.ActivityName,      
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
   FA.Milestone_Completion_Flag,      
   NVL(UPS_TRANSPORT_INBOUND_ORDER_NUMBER,FTO.UPS_ORDER_NUMBER) AS UPSOrderNumber,        
   CASE WHEN FTO.IS_MANAGED = 0 THEN FTO.UPS_ORDER_NUMBER ELSE  NULL END UPSASNNumber,      
@@ -327,12 +310,8 @@ SELECT
   FTO.TransactionTypeId,
   FA.MilestoneName,      
   FA.ActivityCode,      
-<<<<<<< HEAD
   FA.ActivityName,   
   FA.ACTIVITY_STATUS,
-=======
-  FA.ActivityName,      
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
   FA.Milestone_Completion_Flag,      
   FTO.UPS_ORDER_NUMBER AS UPSOrderNumber,      
   CASE WHEN FTO.IS_MANAGED = 0 THEN FTO.UPS_ORDER_NUMBER ELSE  NULL END UPSASNNumber,      
@@ -367,12 +346,8 @@ SELECT
   FTO.TransactionTypeId,
   FA.MilestoneName,      
   FA.ActivityCode,      
-<<<<<<< HEAD
   FA.ActivityName,   
   FA.ACTIVITY_STATUS,
-=======
-  FA.ActivityName,      
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
   FA.Milestone_Completion_Flag,      
   FTO.UPS_ORDER_NUMBER AS UPSOrderNumber,      
   CASE WHEN FTO.IS_MANAGED = 0 THEN FTO.UPS_ORDER_NUMBER ELSE  NULL END UPSASNNumber,      
@@ -406,12 +381,8 @@ SELECT
   FTO.TransactionTypeId,
   FA.MilestoneName,      
   FA.ActivityCode,      
-<<<<<<< HEAD
   FA.ActivityName,  
   FA.ACTIVITY_STATUS,
-=======
-  FA.ActivityName,      
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
   FA.Milestone_Completion_Flag,      
   FTO.UPS_ORDER_NUMBER AS UPSOrderNumber,      
   IA.UPSASNNumber,      
@@ -448,20 +419,12 @@ LEFT JOIN {map_transactiontype_milestone} TM ON TBL.TransactionTypeId = TM.Trans
 
 # DBTITLE 1,Query 6
 def get_query6():
-<<<<<<< HEAD
   query = f"""
-=======
-  query = """
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
   CREATE OR REPLACE TEMP VIEW MAX_Milestone_tv
 as
 SELECT  UPSOrderNumber,SourceSystemKey,AccountId, MAX(MilestoneOrder) AS MilestoneOrder          
 FROM DIGITAL_SUMMARY_MILESTONE_ACTIVITY_STG   
-<<<<<<< HEAD
 where ActivityDate is not null and ActivityDate >=current_date - {days_back}
-=======
-where ActivityDate is not null
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 GROUP BY UPSOrderNumber, SourceSystemKey,AccountId 
   """.format(**source_tables)
   logger.debug("query : " + query)
@@ -471,22 +434,14 @@ GROUP BY UPSOrderNumber, SourceSystemKey,AccountId
 
 # DBTITLE 1,Query 7
 def get_query7():
-<<<<<<< HEAD
   query = f"""
-=======
-  query = """
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
   create or replace temp view DIGITAL_SUMMARY_MILESTONE_ACTIVITY_STG1
 as 
 With Current_MAX_Milestone as
 (
 SELECT  UPSOrderNumber,SourceSystemKey,AccountId, MIN(ActivityDate) AS ActivityDate,MAX(MilestoneOrder) AS MilestoneOrder      
 FROM DIGITAL_SUMMARY_MILESTONE_ACTIVITY_STG         
-<<<<<<< HEAD
 WHERE MilestoneCompletionFlag = 'Y' and MilestoneDate IS NOT NULL and ActivityDate is not null and ActivityDate >=current_date - {days_back}
-=======
-WHERE MilestoneCompletionFlag = 'Y' and MilestoneDate IS NOT NULL and ActivityDate is not null 
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 GROUP BY UPSOrderNumber, SourceSystemKey, AccountId    
 ),
 Current_Milestone as
@@ -513,10 +468,7 @@ select SO.SourceSystemKey
         ,SO.MilestoneName
         ,SO.ActivityId
         ,SO.ActivityName
-<<<<<<< HEAD
         ,SO.ACTIVITY_STATUS
-=======
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
         ,SO.ActivityDate
         ,SO.ActivityCompletionFlag
         ,SO.PlannedMilestoneDate
@@ -574,10 +526,7 @@ def get_query8():
         ,SO.ActivityId
         ,SO.ActivityCode
         ,SO.ActivityName
-<<<<<<< HEAD
         ,SO.ACTIVITY_STATUS
-=======
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
         ,SO.ActivityDate
         ,SO.ActivityCompletionFlag
         ,SO.PlannedMilestoneDate
