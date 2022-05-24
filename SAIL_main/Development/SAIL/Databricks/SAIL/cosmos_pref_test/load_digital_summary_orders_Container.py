@@ -1,0 +1,760 @@
+# Databricks notebook source
+"""
+Author           : Prashant Gupta
+Description      : this notebook is to load digital_summary_orders cosmos container.
+"""
+
+# COMMAND ----------
+
+# DBTITLE 1,Importing python libraries
+import datetime
+from pyspark.sql.types import StringType, ArrayType, StructType, StructField, DecimalType
+from pyspark.sql.functions import col, from_json
+
+# COMMAND ----------
+
+# DBTITLE 1,Importing common variables
+# MAGIC %run "/SAIL/includes/common_variables"
+
+# COMMAND ----------
+
+# DBTITLE 1,Importing common udfs
+# MAGIC %run "/SAIL/includes/common_udfs"
+
+# COMMAND ----------
+
+days_back=365
+
+# COMMAND ----------
+
+# DBTITLE 1,Cosmos connection
+scope = 'key-vault-secrets'
+cosmosEndpoint = dbutils.secrets.get(scope,"cosmosEndpoint")
+cosmosMasterKey = dbutils.secrets.get(scope,"cosmosMasterKey")
+cosmosDatabaseName = "SAIL_PREF_TEST"
+cosmosContainerName = "digital_summary_orders"
+
+cfg = {
+  "spark.cosmos.accountEndpoint" : cosmosEndpoint,
+  "spark.cosmos.accountKey" : cosmosMasterKey,
+  "spark.cosmos.database" : cosmosDatabaseName,
+  "spark.cosmos.container" : cosmosContainerName,
+}
+
+
+# COMMAND ----------
+
+st_dt =datetime.now(tz=timezone(time_zone))
+start_time = st_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+# COMMAND ----------
+
+# DBTITLE 1,Setting debug mode
+dbutils.widgets.text("log_debug_mode", "","")
+dbutils.widgets.get("log_debug_mode")
+log_debug_mode = getArgument("log_debug_mode").strip()
+
+if log_debug_mode == "Y":
+    logger = _get_logger(time_zone,logging.DEBUG)  
+else:
+    logger = _get_logger(time_zone,logging.INFO)
+  
+
+# COMMAND ----------
+
+def get_delta_query(hwm):
+    logger.debug("hwm: " + str(hwm))
+    query ="""
+CREATE
+	OR replace TEMP VIEW digital_summary_orders_vw AS
+	WITH change AS (
+			SELECT UPSOrderNumber
+			FROM {digital_summary_orders}
+			WHERE dl_update_timestamp >= '{hwm}'
+            
+			UNION
+			
+			SELECT UPSORDERNUMBER
+			FROM {digital_summary_transportation_callcheck}
+			WHERE dl_update_timestamp >= '{hwm}'
+			
+			UNION
+			
+			SELECT CASE 
+					WHEN TrasOnlyFlag <> 'TRANS_ONLY'
+						THEN UpsWMSOrderNumber
+					ELSE UpsOrderNumber
+					END UPSOrderNumber
+			FROM {digital_summary_transportation}
+			WHERE dl_update_timestamp >= '{hwm}'
+            
+			UNION
+			
+			SELECT UPSOrderNumber
+			FROM {digital_summary_transportation_references}
+			WHERE dl_update_timestamp >= '{hwm}'
+            
+            UNION
+			
+			SELECT UPSOrderNumber
+			FROM {digital_summary_milestone}
+			WHERE dl_update_timestamp >= '{hwm}'
+            
+			UNION
+			
+			SELECT UPSOrderNumber
+			FROM {digital_summary_milestone_activity}
+			WHERE dl_update_timestamp >= '{hwm}'
+			
+            
+			UNION
+			
+			SELECT UPSOrderNumber
+			FROM {digital_summary_transportation_rates_charges}
+			WHERE dl_update_timestamp >= '{hwm}'
+			
+			UNION
+			
+			SELECT UPSOrderNumber AS ups_order_number
+			FROM {digital_summary_order_lines}
+			WHERE dl_update_timestamp >= '{hwm}'
+            
+			
+			UNION
+			
+			SELECT UPSOrderNumber AS ups_order_number
+			FROM {digital_summary_order_tracking}
+			WHERE dl_update_timestamp >= '{hwm}'
+            
+			
+			UNION
+			
+			SELECT UPSOrderNumber AS ups_order_number
+			FROM {digital_summary_exceptions}
+			WHERE dl_update_timestamp >= '{hwm}'
+			)
+ 
+SELECT o.*
+FROM {digital_summary_orders} o
+INNER JOIN {digital_summary_onboarded_systems} OS ON OS.sourcesystemkey = o.SourceSystemKey
+INNER JOIN (
+	SELECT DISTINCT UPSOrderNumber
+	FROM change
+	) c ON o.UPSOrderNumber = c.UPSOrderNumber
+    where o.DateTimeReceived >= case when date('{hwm}') = '1900-01-01' then current_date else  date('{hwm}') end - {days_back}
+    and AccountId = '1EEF1B1A-A415-43F3-88C5-2D5EBC503529'
+        """.format(**source_tables,hwm=hwm,days_back=days_back)
+    logger.debug("query : " + query)
+    return(query)
+
+# COMMAND ----------
+
+def get_pre_cosmos_query(hwm):
+    query = """WITH last_location AS (
+			SELECT MA.UPSOrderNumber
+				,MA.SourceSystemKey
+				,MA.ACTIVITY_NOTES
+				,MA.ActivityDate
+				,ROW_NUMBER() OVER (
+					PARTITION BY UPSOrderNumber ORDER BY ActivityDate DESC
+					) ROWNUM
+			FROM {digital_summary_milestone_activity} MA
+			WHERE MA.is_deleted = 0 and MA.ACTIVITY_NOTES IS NOT NULL
+				AND MA.ActivityCode NOT IN (
+					'AB'
+					,'E'
+					)
+			)
+		,last_location_wn_nt_delivered AS (
+			SELECT * FROM (
+			SELECT MA.UPSOrderNumber
+				,MA.SourceSystemKey
+				,MA.ACTIVITY_NOTES
+				,MA.ActivityDate
+				,ROW_NUMBER() OVER (PARTITION BY UPSOrderNumber ORDER BY ActivityDate DESC) RN
+			FROM {digital_summary_milestone_activity} MA
+			ANTI JOIN (SELECT distinct UPSOrderNumber FROM {digital_summary_milestone_activity} 
+			WHERE is_deleted = 0 and ActivityCode IN ('D1','DELIVER')) D ON MA.UPSOrderNumber = D.UPSOrderNumber
+			WHERE MA.is_deleted = 0 and MA.ACTIVITY_NOTES IS NOT NULL
+				AND MA.ActivityCode NOT IN ('AB','E')) WHERE RN = 1
+			)
+		,shipunit_references AS (
+			SELECT UPSOrderNumber
+					,SourceSystemKey
+					,collect_set(named_struct('referenceType', nvl(TR.ReferenceType, ''), 'referenceValue', nvl(TR.ReferenceValue, ''))) AS shipunit_reference
+			FROM {digital_summary_transportation_references} TR
+			WHERE ReferenceLevel = 'shipunit_reference'
+			GROUP BY UPSOrderNumber
+					,SourceSystemKey
+			)
+		,PickUpDate AS (
+			SELECT ma.UPSOrderNumber,MAX(ma.ActivityDate)  as PickUpDate
+			FROM {digital_summary_milestone_activity} MA
+			WHERE MA.is_deleted = 0 and  MA.ActivityCode in('AM','AF','CP')   and MA.SourceSystemKey = 1011
+			group by ma.UPSOrderNumber
+			)
+		,total_invoice_charge AS (
+			SELECT UpsOrderNumber
+				,SourceSystemKey
+				,SUM(CAST(P.CHARGE AS DECIMAL(10, 2))) AS totalCharge
+				,CurrencyCode AS totalcurency
+			FROM {digital_summary_transportation_rates_charges} p
+			WHERE P.ChargeLevel = 'CUSTOMER_INVOICE'
+			GROUP BY UpsOrderNumber
+				,SourceSystemKey
+				,CurrencyCode
+			)
+		,total_charge AS (
+			SELECT UpsOrderNumber
+				,SourceSystemKey
+				,SUM(CAST(P.CHARGE AS DECIMAL(10, 2))) AS totalCharge
+				,CurrencyCode AS totalcurency
+			FROM {digital_summary_transportation_rates_charges} p
+			WHERE P.ChargeLevel = 'CUSTOMER_RATES'
+			GROUP BY UpsOrderNumber
+				,SourceSystemKey
+				,CurrencyCode
+			)
+		,order_line AS (
+			SELECT  
+                max(case when nvl(OL.ShipmentLineCanceledFlag, 'Y') = 'Y' then nvl(OL.ShipmentLineCanceledFlag, 'Y') else null end ) as ShipmentLineCanceledFlag
+				,OL.UPSOrderNumber
+				,OL.SourceSystemKey
+				,max(case when nvl(OL.ShipmentLineCanceledFlag, 'Y') = 'Y' then OL.ShipmentLineCanceledDate else null end) as ShipmentLineCanceledDate
+                ,SUM(OL.SKUQuantity) SKUQuantity_sum
+			FROM {digital_summary_order_lines} OL
+			JOIN {digital_summary_orders_vw} O ON O.UPSOrderNumber = OL.UPSOrderNumber
+				AND O.SourceSystemKey = OL.SourceSystemKey
+			--WHERE nvl(OL.ShipmentLineCanceledFlag, 'Y') = 'Y'
+            group by OL.UPSOrderNumber
+				,OL.SourceSystemKey
+			)
+		,tracking AS (
+			SELECT SOT.UPSOrderNumber
+				,COUNT(SOT.TRACKING_NUMBER) CarrierShipmentCount
+				,collect_set(nvl(SOT.TRACKING_NUMBER,"")) AS TRACKING_NUMBER_LIST
+				,collect_set(named_struct('ShipmentDimensions' , nvl(SOT.ShipmentDimensions, '') , 'ShipmentWeight' , nvl(SOT.ShipmentWeight, '') , 'Tracking_Number' , nvl(SOT.TRACKING_NUMBER, '') , 'CarrierCode' , nvl(SOT.CarrierCode, '') , 'CarrierType' , nvl(SOT.CarrierType, ''), 'carrierName' , nvl(o.Carrier, '') , 'ShipmentDimensions_UOM' , nvl(SOT.ShipmentDimensions_UOM, '') , 'ShipmentWeight_UOM' , nvl(SOT.ShipmentWeight_UOM, '') , 'LOAD_AREA' , nvl(SOT.LOAD_AREA, '') , 'ShipmentDescription' , nvl(SOT.SHIPMENT_DESCRIPTION, ''), 'ShipmentQuantity' , nvl(CAST(SOT.SHIPMENT_QUANTITY AS INT), 0), 'UnitOfMeasurement' , nvl(SOT.UOM, ''), 'TempRangeMin' , nvl(SOT.TemperatureRange_Min, ''), 'TempRangeMax' , nvl(SOT.TemperatureRange_Max, '') )) tracking
+			FROM {digital_summary_order_tracking} SOT
+			JOIN {digital_summary_orders_vw} O ON O.UPSOrderNumber = SOT.UPSOrderNumber
+			WHERE nvl(SOT.TRACKING_NUMBER, '') NOT IN (
+					''
+					,' '
+					)
+			GROUP BY sot.UPSOrderNumber
+			)
+		,max_activity AS (
+			SELECT MAX(ActivityDate) AS ActivityDate
+				,O.UPSOrderNumber AS UPSOrderNumber
+				,O.SourceSystemKey
+                ,max(case when MA.ActivityCode IN (
+					'D'
+					,'D1'
+					,'D9'
+					,'DELIVER'
+					) then 1 else 0 end) as activity_flag
+				,max(case when MA.ActivityCode IN (
+					'AG','AB','AA'
+					) then ma.ActivityDate else null end) as estimatedDeliveryDateTime
+				,max(case when MA.CurrentMilestoneFlag = 'Y' then ma.ActivityDate else null end) as ActivityDate_CurrMile
+				,max(case when MA.CurrentMilestoneFlag = 'Y' then ma.MilestoneOrder else null end) as MilestoneOrder_CurrMile
+				,max(case when ActivityCode = 'CC' then date_format(ma.ActivityDate , 'yyyy-MM-dd HH:mm:ss.SSS') else null end) as claimClosureDateTime
+				,max(case when ActivityCode in ('D','D1','D9') then ma.ActivityDate else null end) as actualDeliveryDateTime_Movement
+                ,max(case when ma.ActivityCode='COSD' then ma.ACTIVITY_NOTES else null end ) as claimStatus
+                ,max(case when upper(ma.ActivityCode) = 'DELIVER' and ma.ActivityDate is not null then 1 else 0 end ) as ActivityCodeDelivery_status
+                ,max(case when ma.ActivityCode IN('D','D1','D9','DELIVER','155') then ma.ActivityDate else null end ) as m1_ActualDeliveryDateTime
+                ,max(case when ma.ActivityCode IN('AG','AB','AA','071') then ma.ActivityDate else null end ) as ma_shipmentEstimatedDateTime
+			FROM {digital_summary_orders_vw} O
+			LEFT JOIN {digital_summary_milestone_activity} MA ON O.UPSOrderNumber = MA.UPSOrderNumber
+				AND O.SourceSystemKey = MA.SourceSystemKey and MA.is_deleted = 0
+			GROUP BY O.UPSOrderNumber
+				,O.SourceSystemKey
+			)
+		,max_exception AS (
+			SELECT EX.OTZ_ExceptionCreatedDate AS ExceptionCreatedDate
+				,O.UPSTransportShipmentNumber AS UPSOrderNumber
+				,EX.SourceSystemKey
+				,ex.ExceptionReason AS exceptionReason
+				,MMA.ActivityName AS exceptionType
+				,rank() OVER (
+					PARTITION BY O.UPSTransportShipmentNumber
+					,EX.SourceSystemKey ORDER BY EX.OTZ_ExceptionCreatedDate DESC
+					) rn
+			FROM {digital_summary_orders_vw} o
+			INNER JOIN {digital_summary_exceptions} EX ON O.UPSTransportShipmentNumber = EX.UPSOrderNumber
+			LEFT JOIN {map_milestone_activity} MMA ON MMA.ActivityCode = EX.ExceptionEvent
+			INNER JOIN max_activity MA ON o.UPSOrderNumber = MA.UPSOrderNumber
+				AND o.SourceSystemKey = MA.SourceSystemKey and MA.activity_flag = 0
+			
+			UNION
+			
+			SELECT EX.UTC_ExceptionCreatedDate AS ExceptionCreatedDate
+				,O.UPSOrderNumber AS UPSOrderNumber
+				,EX.SourceSystemKey
+				,ex.ExceptionReason AS exceptionReason
+				,MMA.ActivityName AS exceptionType
+				,rank() OVER (
+					PARTITION BY O.UPSOrderNumber
+					,EX.SourceSystemKey ORDER BY EX.UTC_ExceptionCreatedDate DESC
+					) rn
+			FROM {digital_summary_orders_vw} O
+			INNER JOIN {digital_summary_exceptions} EX ON O.UPSOrderNumber = EX.UPSOrderNumber
+			LEFT JOIN {map_milestone_activity} MMA ON MMA.ActivityCode = EX.ExceptionEvent
+			INNER JOIN max_activity MA ON o.UPSOrderNumber = MA.UPSOrderNumber 
+				AND o.SourceSystemKey = MA.SourceSystemKey and MA.activity_flag = 0
+			WHERE EX.SourceSystemKey = 1019
+			)
+        ,max_exception2 AS (
+			SELECT EX.OTZ_ExceptionCreatedDate AS ExceptionCreatedDate
+				,O.UPSTransportShipmentNumber AS UPSOrderNumber
+				,EX.SourceSystemKey
+				,ex.ExceptionReason AS exceptionReason
+				,MMA.ActivityName AS exceptionType
+				,rank() OVER (
+					PARTITION BY O.UPSTransportShipmentNumber
+					,EX.SourceSystemKey ORDER BY EX.OTZ_ExceptionCreatedDate DESC
+					) rn
+			FROM {digital_summary_orders_vw} o
+			INNER JOIN {digital_summary_exceptions} EX ON O.UPSTransportShipmentNumber = EX.UPSOrderNumber
+			LEFT JOIN {map_milestone_activity} MMA ON MMA.ActivityCode = EX.ExceptionEvent
+            
+			UNION
+			
+			SELECT EX.UTC_ExceptionCreatedDate AS ExceptionCreatedDate
+				,O.UPSOrderNumber AS UPSOrderNumber
+				,EX.SourceSystemKey
+				,ex.ExceptionReason AS exceptionReason
+				,MMA.ActivityName AS exceptionType
+				,rank() OVER (
+					PARTITION BY O.UPSOrderNumber
+					,EX.SourceSystemKey ORDER BY EX.UTC_ExceptionCreatedDate DESC
+					) rn
+			FROM {digital_summary_orders_vw} O
+			INNER JOIN {digital_summary_exceptions} EX ON O.UPSOrderNumber = EX.UPSOrderNumber
+			LEFT JOIN {map_milestone_activity} MMA ON MMA.ActivityCode = EX.ExceptionEvent
+			WHERE EX.SourceSystemKey = 1019
+			)
+        ,exception2 AS (
+			SELECT UPSOrderNumber
+				,SourceSystemKey
+				--,exceptionReason
+				-- ,exceptionType
+				,collect_set(named_struct('exceptionReason' , nvl(me.exceptionReason, '') , 'exceptionType' , nvl(me.exceptionType, '') )) AS exception_list
+			FROM max_exception2 me
+			WHERE rn = 1
+			GROUP BY UPSOrderNumber
+				,SourceSystemKey
+			)
+		,exception AS (
+			SELECT UPSOrderNumber
+				,SourceSystemKey
+				--,exceptionReason
+				-- ,exceptionType
+				,collect_set(named_struct('exceptionReason' , nvl(me.exceptionReason, '') , 'exceptionType' , nvl(me.exceptionType, '') )) AS exception_list
+			FROM max_exception me
+			WHERE rn = 1
+			GROUP BY UPSOrderNumber
+				,SourceSystemKey
+			)
+		,exception_list AS (
+			SELECT UPSOrderNumber
+				,SourceSystemKey
+				,collect_set(named_struct('exceptionType' , nvl(ExceptionType, '') ,'ExceptionReasonType' , nvl(ExceptionReasonType, '') , 'exceptionReason' , nvl(exceptionReason, ''), 'ExceptionPrimaryIndicator' , nvl(ExceptionPrimaryIndicator, ''), 'ExceptionCategory' , nvl(ExceptionCategory, ''), 'OTZ_ExceptionCreatedDate' , nvl(OTZ_ExceptionCreatedDate, ''),'UTC_ExceptionCreatedDate' , nvl(UTC_ExceptionCreatedDate, ''))) AS exception_list
+			FROM {digital_summary_exceptions}
+			GROUP BY UPSOrderNumber
+				,SourceSystemKey
+			)
+		,all_act AS (
+			SELECT MAX(MA.ActivityDate) AS ActivityDate
+				,O.UPSOrderNumber
+				,O.SourceSystemKey
+			FROM {digital_summary_orders_vw} O
+			INNER JOIN {digital_summary_milestone_activity} MA ON O.UPSOrderNumber = MA.UPSOrderNumber
+				AND O.SourceSystemKey = MA.SourceSystemKey
+				AND MA.CurrentMilestoneFlag = 'Y' and MA.is_deleted = 0 
+			GROUP BY O.UPSOrderNumber
+				,O.SourceSystemKey
+			)
+		,detail_milestone AS (
+			SELECT AccountId,UPSOrderNumber,DP_SERVICELINE_KEY,
+			sort_array(collect_list(named_struct('MilestoneOrder',MilestoneOrder,'ShipmentMileStone',ShipmentMileStones
+			  ,'templateType',templateType,'MilesStoneEstimatedDateTime',MilesStoneEstimatedDateTime
+			  ,'MilesStoneCompletionDateTime',MilesStoneCompletionDateTime,'activityCount',activityCount))) as DetailMilestone
+			from(SELECT MilestoneOrder,ShipmentMileStones,templateType AS templateType,MAX(date_format(MilesStoneEstimatedDateTime, 'yyyy-MM-dd HH:mm:ss.SSS')) MilesStoneEstimatedDateTime,
+				MAX(date_format(MilesStoneCompletionDateTime, 'yyyy-MM-dd HH:mm:ss.SSS')) AS MilesStoneCompletionDateTime,MAX(activityCount) AS activityCount,
+				AccountId,UPSOrderNumber,DP_SERVICELINE_KEY
+				FROM (SELECT M.MilestoneName AS ShipmentMileStones,
+				M.MilestoneOrder, MA.PlannedMilestoneDate MilesStoneEstimatedDateTime,
+			    CASE WHEN MA.MilestoneCompletionFlag = 'Y' THEN NVL(MA.MilestoneDate, MA.ActivityDate) END MilesStoneCompletionDateTime,
+			    NVL(MA1.activityCount, 0) AS activityCount, MTM.TransactionTypeName AS templateType, M.AccountId,M.UPSOrderNumber,M.DP_SERVICELINE_KEY
+			  FROM {digital_summary_milestone} M
+			  LEFT JOIN {digital_summary_milestone_activity} MA 
+					ON M.UPSOrderNumber = MA.UPSOrderNumber	AND M.MilestoneOrder = MA.MilestoneOrder and MA.is_deleted = 0
+						AND M.SourceSystemKey = CASE WHEN MA.SourceSystemKey = '1011' THEN M.SourceSystemKey ELSE MA.SourceSystemKey END
+			  LEFT JOIN (SELECT COUNT(1) AS activityCount,MA.UPSOrderNumber,MA.SourceSystemKey,MA.MilestoneName FROM {digital_summary_milestone_activity} MA where MA.is_deleted = 0
+			    GROUP BY MA.UPSOrderNumber,MA.SourceSystemKey,MA.MilestoneName) MA1 
+			    ON M.UPSOrderNumber = MA1.UPSOrderNumber AND M.SourceSystemKey = CASE WHEN MA1.SourceSystemKey = '1011' THEN M.SourceSystemKey ELSE MA.SourceSystemKey END AND M.MilestoneName = MA1.MilestoneName
+			   LEFT JOIN {map_transactiontype_milestone} MTM ON MA.MilestoneOrder=MTM.MilestoneOrder
+			  WHERE M.MilestoneName <> 'ALERT' ) TBL
+			  GROUP BY ShipmentMileStones,templateType,MilestoneOrder,AccountId,UPSOrderNumber,DP_SERVICELINE_KEY)
+			   GROUP BY AccountId, UPSOrderNumber, DP_SERVICELINE_KEY
+			)
+		,max_activity_name AS (
+			SELECT collect_set(named_struct('WIP_ActivityName' , nvl(WA.WIP_ActivityName, '') , 'Type' , nvl(WA.Type, '') )) AS Activity_name_LIST
+				,tmpActivity.UPSOrderNumber
+				,tmpActivity.SourceSystemKey
+			FROM all_act tmpActivity
+			INNER JOIN {digital_summary_milestone_activity} MA ON MA.is_deleted = 0 and tmpActivity.UPSOrderNumber = MA.UPSOrderNumber
+				AND tmpActivity.SourceSystemKey = MA.SourceSystemKey
+				AND tmpActivity.ActivityDate = MA.ActivityDate
+				AND MA.CurrentMilestoneFlag = 'Y'
+			INNER JOIN {wh_wip_mapping_activity} WA ON MA.ActivityName = WA.ActivityName
+				AND MA.SourceSystemKey = WA.SOURCE_SYSTEM_KEY  --and WA.Type ='Out'
+			GROUP BY tmpActivity.UPSOrderNumber
+				,tmpActivity.SourceSystemKey
+			)
+	SELECT DISTINCT o.hash_key as id
+    --md5(concat(o.AccountId,nvl(o.FacilityId,''),o.UPSOrderNumber,o.DateTimeReceived,nvl(o.UPSTransportShipmentNumber,''))) as id
+		,o.AccountId                                                                                        
+,O.DP_SERVICELINE_KEY                                                                               
+,O.ServiceLevel                                                                                     
+,o.FacilityId                                                                                       
+,O.OrderCancelledFlag                                                                               
+,O.IS_INBOUND IS_INBOUND                                                            
+,o.UPSOrderNumber                                                                                   
+,date_format(O.DateTimeReceived, 'yyyy-MM-dd HH:mm:ss.SSS') DateTimeReceived                        
+,date_format(O.DateTimeReceived, 'yyyy-MM-dd') AS ShipmentCreationDate                              
+,date_format(O.DateTimeShipped, 'yyyy-MM-dd') AS ShipmentShippedDate                                
+,date_format(O.DateTimeShipped , 'yyyy-MM-dd HH:mm:ss.SSS') DateTimeShipped                         
+,date_format(O.ScheduledPickUpDateTime , 'yyyy-MM-dd HH:mm:ss.SSS') ScheduledPickUpDateTime                                                                          
+,O.UPSOrderNumber shipmentNumber                                                                    
+,O.SourceSystemKey                                                                                  
+,O.OriginCountry                                                                                    
+,O.DestinationCountry                                                                               
+,nvl(O.ServiceMode,'UNASSIGNED') AS ShipmentMode                                                    
+,O.ServiceMode                                                                                      
+,O.OrderNumber referenceNumber                                                                      
+,O.CustomerPO customerPONumber                                                                      
+,O.UPSTransportShipmentNumber upsTransportShipmentNumber                                            
+,O.GFF_ShipmentInstanceId gffShipmentInstanceId                                                     
+,O.GFF_ShipmentNumber gffShipmentNumber                                                             
+,O.OriginContactName shipmentOrigin_contactName                                                     
+,O.OriginAddress1 shipmentOrigin_addressLine1                                                       
+,O.OriginAddress2 shipmentOrigin_addressLine2                                                       
+,O.OriginCity shipmentOrigin_city                                                                   
+,O.OriginCity                                                                                       
+,O.OriginProvince shipmentOrigin_stateProvince                                                      
+,O.OriginPostalCode shipmentOrigin_postalCode                                                       
+,O.OriginCountry shipmentOrigin_country                                                             
+,O.DestinationContactName shipmentDestination_contactName                                           
+,O.DestinationAddress1 shipmentDestination_addressLine1                                             
+,O.DestinationAddress2 shipmentDestination_addressLine2                                              
+,O.DestinationCity shipmentDestination_city                                                          
+,O.DestinationCity                                                                                   
+,O.DestinationProvince shipmentDestination_stateProvince                                             
+,O.DestinationPostalcode shipmentDestination_postalCode                                              
+,O.DestinationCountry shipmentDestination_country
+,O.OrderType shipmentDescription
+,O.ServiceMode shipmentService
+,O.ServiceLevel shipmentServiceLevel
+,O.ServiceLevelCode shipmentServiceLevelCode
+,O.CarrierCode shipmentCarrierCode
+,O.Carrier shipmentCarrier
+,O.Carrier
+,O.OrderStatusName inventoryShipmentStatus
+,O.OrderStatusName
+,O.TRANS_MILESTONE transportationMileStone
+,O.ExceptionCode shipmentPrimaryException
+,O.ExceptionCode  primaryException  
+,date_format(ShipmentBookedDate, 'yyyy-MM-dd HH:mm:ss.SSS') AS shipmentBookedOnDateTime
+,date_format(O.DateTimeCancelled, 'yyyy-MM-dd HH:mm:ss.SSS') as shipmentCanceledDateTime
+,O.CancelledReasonCode shipmentCanceledReason
+,date_format(O.ScheduleShipmentDate, 'yyyy-MM-dd HH:mm:ss.SSS') as actualShipmentDateTime
+,date_format(O.DateTimeReceived, 'yyyy-MM-dd HH:mm:ss.SSS') as shipmentCreateOnDateTime
+,date_format(O.OriginalScheduledDeliveryDateTime , 'yyyy-MM-dd HH:mm:ss.SSS') originalScheduledDeliveryDateTime
+,date_format(O.ActualDeliveryDateTime , 'yyyy-MM-dd HH:mm:ss.SSS') AS actualDeliveryDateTime
+,date_format(max_act.actualDeliveryDateTime_Movement , 'yyyy-MM-dd HH:mm:ss.SSS') AS actualDeliveryDateTime_Movement
+,O.FacilityId warehouseId
+,O.OrderWarehouse warehouseCode
+,O.CurrentMilestone milestoneStatus
+,date_format(O.EstimatedDeliveryDateTime , 'yyyy-MM-dd HH:mm:ss.SSS') AS estimatedDeliveryDateTime
+,O.ORDER_REF_1_VALUE referenceNumber1
+,O.ORDER_REF_2_VALUE referenceNumber2
+,O.ORDER_REF_3_VALUE referenceNumber3
+,O.ORDER_REF_4_VALUE referenceNumber4
+,O.ORDER_REF_5_VALUE referenceNumber5
+,O.OriginTimeZone AS shipmentCreateOnDateTimeZone
+,O.DestinationTimeZone AS originalScheduledDeliveryDateTimeZone
+,date_format(O.DateTimeShipped, 'yyyy-MM-dd HH:mm:ss.SSS') AS shippedDateTime
+,O.shippedDateTimeZone
+,O.LOAD_ID AS LoadID
+,O.DestinationLocationCode AS shipmentDestination_locationCode
+,O.AccountId AS dpProductLineKey
+,O.Account_number AS Accountnumber
+,O.ServiceLevel AS isShipmentServiceLevelResultSet
+,CASE 
+	WHEN O.actualDeliveryDateTime > O.originalScheduledDeliveryDateTime
+		THEN 'LATE'
+	WHEN CAST(O.actualDeliveryDateTime AS DATE) <= CAST(O.originalScheduledDeliveryDateTime AS DATE)
+		THEN 'ONTIME'
+	END AS deliveryStatus
+,CASE 
+	WHEN CAST(O.actualDeliveryDateTime AS DATE) > CAST(FTTR.LoadLatestDeliveryDate AS DATE)
+		THEN 'LATE'
+	WHEN CAST(O.actualDeliveryDateTime AS DATE) <= CAST(FTTR.LoadLatestDeliveryDate AS DATE)
+		THEN 'ONTIME'
+	END AS deliveryStatus_movement
+,CC.IS_TEMPERATURE AS isTemperatureTracked
+,CC.IS_TEMPERATURE
+,CC.STATUSDETAILTYPE
+,CC.LATEST_TEMPERATURE AS latestTemperature
+,date_format(CC.TEMPERATURE_DATETIME, 'yyyy-MM-dd HH:mm:ss.SSS') AS temperatureDateTime
+,CC.TEMPERATURE_CITY AS temperatureCity
+,CC.TEMPERATURE_STATE AS temperatureState
+,CC.TEMPERATURE_COUNTRY AS temperatureCountry
+,CC.TemperatureC AS latestTemperatureInCelsius
+,CC.TemperatureF As latestTemperatureInFahrenheit
+,cg.totalCharge totalCharge  
+,cg.totalCharge * nvl(t.CarrierShipmentCount,1) totalChargeMovement  
+,cg.totalcurency totalChargeCurrency  
+,tic.totalCharge totalInvoiceCharge  
+,tic.totalcurency totalInvoiceChargeCurrency           
+,CASE 
+	WHEN DSTR.UPSOrderNumber IS NULL
+		THEN 'N'
+	ELSE 'Y'
+	END AS ISCLAIM --CL275            
+,MA.ACTIVITY_NOTES AS lastKnownLocation --CL282 
+,LLD.ACTIVITY_NOTES AS lastKnownLocationMovement
+,CASE 
+	WHEN OL.ShipmentLineCanceledFlag = 'Y'
+		THEN 'Y'
+	ELSE 'N'
+	END AS ShipmentLineCanceledFlag
+,date_format(OL.ShipmentLineCanceledDate, 'yyyy-MM-dd HH:mm:ss.SSS')   as ShipmentLineCanceledDate 
+, t.TRACKING_NUMBER_LIST AS carrierShipmentNumber
+,concat_ws(',',t.TRACKING_NUMBER_LIST) as Track_num
+,t.tracking AS TrackingNumber
+,e.exception_list AS exception
+,e2.exception_list AS exception2
+,el.exception_list
+,claim_type.ReferenceValue AS claimType
+,'' AS claimAmountCurrency
+,claim_amt.ReferenceValue AS claimAmount
+,claim_dt.ReferenceValue AS claimFilingDateTime
+,claim_paid.ReferenceValue AS claimAmountPaid
+,'' AS claimAmountPaidCurrency
+,man.Activity_name_LIST AS WIP_ActivityName
+,dm.DetailMilestone AS DetailMilestone
+,'shipmentCanceledBy' shipmentCanceledBy
+,O.UPSOrderNumber upsShipmentNumber
+,O.OrderNumber clientShipmentNumber
+,O.OrderNumber as orderNumber
+,O.OriginTimeZone
+,NULL AS LineNumber
+,NULL AS shipmentLineCanceledDateTime
+,NULL AS shipmentLineCanceledBy
+,NULL AS shipmentLineCanceledReason
+,CASE WHEN O.IS_INBOUND=0 THEN 'Outbound'
+	WHEN O.IS_INBOUND=1 THEN 'Inbound'
+     WHEN O.IS_INBOUND=2 THEN 'Movement'
+	 END AS shipmentType
+,date_format(O.DateTimeCancelled, 'yyyy-MM-dd HH:mm:ss.SSS') AS DateTimeCancelled
+,date_format(O.DateTimeReceived, 'yyyy-MM-dd HH:mm:ss.SSS') AS shipmentPlaceDateTime
+,date_format(O.ActualScheduledDeliveryDateTime, 'yyyy-MM-dd HH:mm:ss.SSS') AS  actualScheduledDeliveryDateTime
+,CASE WHEN O.CurrentMilestone = 'DELIVERED' THEN O.PROOF_OF_DELIVERY_NAME ELSE NULL END AS ProofofDelivery_Name 
+,O.ConsigneeName AS consignee
+,O.OrderWarehouse  originLocationCode
+,O.DestinationLocationCode AS ShipmentDestination_d
+,O.AuthorizerName AS authorizorName
+,O.DeliveryInstructions AS deliveryInstructions
+,O.OriginTimeZone AS shipmentPlaceDateTimeZone
+,O.OriginTimeZone AS shipmentCanceledDateTimeZone
+,O.OriginTimeZone AS shipmentCreateDateTimeZone
+,date_format(O.ScheduleShipmentDate, 'yyyy-MM-dd HH:mm:ss.SSS') as shipmentCreateDateTime
+,date_format(O.ScheduleShipmentDate, 'yyyy-MM-dd HH:mm:ss.SSS') As expectedShipByDateTime 
+,O.TransactionTypeName templateType
+,O.DestinationLocationCode AS ShipmentDestination_destinationLocationCode
+,pdate.PickUpDate
+,CASE when max_act.activity_flag =1 then date_format(max_act.ActivityDate, 'yyyy-MM-dd HH:mm:ss.SSS') else null end as actualDeliveryDateTime_inbound
+,CASE WHEN O.IS_ASN=1 THEN  'ASN' ELSE 'Transport Order' END AS inboundType
+,O.IS_ASN
+,date_format(max_act.estimatedDeliveryDateTime, 'yyyy-MM-dd HH:mm:ss.SSS') as estimatedDeliveryDateTime_inbound
+,date_format(max_act.claimClosureDateTime, 'yyyy-MM-dd HH:mm:ss.SSS') as claimClosureDateTime
+,FTTR.LoadLatestDeliveryDate
+,O.Freight_Carriercode  
+,O.WAYBILL_AIRBILL_NUM  
+,O.UPSOrderNumber AS FTZShipmentNumber
+,SUR.shipunit_reference AS shipment_referenceType
+,O.ActualScheduledDeliveryDateTimeZone
+,wse.WAREHOUSE_CODE as LocationCode
+,o.SourceSystemName
+,wse.GLD_WAREHOUSE_MAPPED_KEY wse_warehouseId
+,CASE WHEN o.SourceSystemName LIKE '%SOFTEON%' THEN WSE.BUILDING_CODE ELSE wse.WAREHOUSE_CODE END wse_warehouseCode
+,wse.WAREHOUSE_TIME_ZONE wse_warehouseTimeZone
+,wse.ADDRESS_LINE_1 wse_addressLine1
+,wse.ADDRESS_LINE_2 wse_addressLine2
+,wse.CITY wse_city
+,wse.PROVINCE wse_stateProvince
+,wse.POSTAL_CODE wse_postalCode
+,wse.COUNTRY wse_country 
+,max_act.claimStatus
+,O.PickUPDateTime AS originalPickupDateTime
+,nvl(o.is_deleted,0) as is_deleted
+,date_format(o.ActualDeliveryDate , 'yyyy-MM-dd HH:mm:ss.SSS') as ActualDeliveryDate
+,max_act.ActivityCodeDelivery_status as ActivityCodeDelivery_status
+,date_format(max_act.m1_ActualDeliveryDateTime , 'yyyy-MM-dd HH:mm:ss.SSS') as m1_ActualDeliveryDateTime
+,date_format(max_act.ma_shipmentEstimatedDateTime , 'yyyy-MM-dd HH:mm:ss.SSS') as ma_shipmentEstimatedDateTime
+,cast(ol.SKUQuantity_sum as bigint) as SKUQuantity_sum
+,o.OrderLineCount
+
+	FROM {digital_summary_orders_vw} O
+	LEFT JOIN {digital_summary_transportation_callcheck} CC ON O.UPSTransportShipmentNumber = CC.UPSORDERNUMBER
+		AND CC.STATUSDETAILTYPE = 'TemperatureTracking'
+		AND CC.IS_LATEST_TEMPERATURE = 'Y'
+	LEFT JOIN (SELECT DISTINCT CASE 
+				WHEN FTTR.TrasOnlyFlag <> 'TRANS_ONLY'
+					THEN FTTR.UpsWMSSourceSystemKey
+				ELSE FTTR.SourceSystemKey
+				END SourceSystemKey,
+                CASE 
+				WHEN FTTR.TrasOnlyFlag <> 'TRANS_ONLY'
+					THEN FTTR.UpsWMSOrderNumber
+				ELSE FTTR.UpsOrderNumber
+				END UPSOrderNumber
+                ,MAX(FTTR.LoadLatestDeliveryDate) LoadLatestDeliveryDate
+                FROM {digital_summary_transportation} FTTR
+                GROUP BY
+                CASE 
+				WHEN FTTR.TrasOnlyFlag <> 'TRANS_ONLY'
+					THEN FTTR.UpsWMSSourceSystemKey
+				ELSE FTTR.SourceSystemKey
+				END ,
+                CASE 
+				WHEN FTTR.TrasOnlyFlag <> 'TRANS_ONLY'
+					THEN FTTR.UpsWMSOrderNumber
+				ELSE FTTR.UpsOrderNumber
+				END ) FTTR ON 
+				FTTR.SourceSystemKey = O.SourceSystemKey AND FTTR.UpsOrderNumber = O.UPSOrderNumber
+	LEFT JOIN {digital_summary_transportation_references} DSTR ON FTTR.UpsOrderNumber = DSTR.UPSOrderNumber
+		AND FTTR.SourceSystemKey = DSTR.SourceSystemKey AND DSTR.ReferenceLevel = 'LoadReference_Claim' 
+	AND DSTR.ReferenceType in ('Claim Type','Claim Amount')  
+	LEFT JOIN last_location MA ON O.UPSOrderNumber = MA.UPSOrderNumber
+		AND ROWNUM = 1
+	LEFT JOIN last_location_wn_nt_delivered LLD ON O.UPSOrderNumber = LLD.UPSOrderNumber
+	LEFT JOIN PickUpDate pdate ON O.UPSOrderNumber = pdate.UPSOrderNumber
+	LEFT JOIN total_invoice_charge tic ON O.upsTransportShipmentNumber = tic.UPSOrderNumber  
+	LEFT JOIN total_charge cg ON O.upsTransportShipmentNumber = cg.UPSOrderNumber   
+	LEFT JOIN order_line ol ON O.UPSOrderNumber = OL.UPSOrderNumber
+		AND o.SourceSystemKey = OL.SourceSystemKey
+	LEFT JOIN tracking t ON o.UPSOrderNumber = t.UPSOrderNumber
+	LEFT JOIN exception e ON CASE 
+			WHEN e.SourceSystemKey = 1019
+				THEN o.UPSOrderNumber
+			ELSE UPSTransportShipmentNumber
+			END = e.UPSOrderNumber
+    LEFT JOIN exception2 e2 ON  
+			o.UPSOrderNumber = e2.UPSOrderNumber  
+            AND O.SourceSystemKey= e2.SourceSystemKey    
+	LEFT JOIN exception_list el ON O.UPSOrderNumber = el.UPSOrderNumber
+		AND o.SourceSystemKey = el.SourceSystemKey	
+	LEFT JOIN detail_milestone dm ON O.UPSOrderNumber = dm.UPSOrderNumber
+		AND O.AccountId = dm.AccountId
+        AND O.DP_SERVICELINE_KEY = dm.DP_SERVICELINE_KEY
+	LEFT JOIN {digital_summary_transportation_references} claim_type ON claim_type.UPSOrderNumber = o.UPSOrderNumber
+		AND claim_type.SourceSystemKey = o.SourceSystemKey
+		AND claim_type.ReferenceLevel = 'LoadReference_Claim'
+		AND claim_type.ReferenceType = 'Claim Type'
+	LEFT JOIN {digital_summary_transportation_references} claim_amt ON claim_amt.UPSOrderNumber = o.UPSOrderNumber
+		AND claim_amt.SourceSystemKey = o.SourceSystemKey
+		AND claim_amt.ReferenceLevel = 'LoadReference_Claim'
+		AND claim_amt.ReferenceType = 'Claim Amount'
+	LEFT JOIN {digital_summary_transportation_references} claim_dt ON claim_dt.UPSOrderNumber = o.UPSOrderNumber
+		AND claim_dt.SourceSystemKey = o.SourceSystemKey
+		AND claim_dt.ReferenceLevel = 'LoadReference_Claim'
+		AND claim_dt.ReferenceType = 'Claim Date'
+	LEFT JOIN {digital_summary_transportation_references} claim_paid ON claim_paid.UPSOrderNumber = o.UPSOrderNumber
+		AND claim_paid.SourceSystemKey = o.SourceSystemKey
+		AND claim_paid.ReferenceLevel = 'LoadReference_Claim'
+		AND claim_paid.ReferenceType = 'Claim Amount Paid'
+	LEFT JOIN max_activity_name man ON O.UPSOrderNumber = man.UPSOrderNumber
+		AND o.SourceSystemKey = man.SourceSystemKey
+	LEFT JOIN max_activity max_act on max_act.UPSOrderNumber = o.UPSOrderNumber  
+            AND max_act.SourceSystemKey = o.SourceSystemKey 
+	LEFT JOIN shipunit_references SUR on SUR.UPSOrderNumber = o.UPSOrderNumber  
+            AND SUR.SourceSystemKey = o.SourceSystemKey 
+    left join {dim_warehouse} wse
+    on o.FacilityId =wse.GLD_WAREHOUSE_MAPPED_KEY and o.SourceSystemKey = wse.SOURCE_SYSTEM_KEY
+
+  """.format(**source_tables,digital_summary_orders_vw='digital_summary_orders_vw',hwm=hwm,days_back=days_back)
+    return (query)
+
+# COMMAND ----------
+
+# DBTITLE 1,Main function
+def main():
+    logger.info('Main function is running')
+  ############################ ETL AUDIT #########################################################
+  
+    audit_result['process_name'] = 'load_digital_summary_orders_Container'
+    audit_result['process_type'] = 'DataBricks'
+    audit_result['layer'] = 'cosmos'
+    audit_result['table_name'] = 'cosmos_digital_summary_orders'
+    audit_result['process_date'] = datetime.now(tz=timezone(time_zone)).strftime("%Y-%m-%d")
+    audit_result['start_time'] = start_time
+  
+    try:
+      
+        pid_get = get_pid()
+        logger.debug("pid_get: {pid_get}".format(pid_get=pid_get))
+        pid =  datetime.now(tz=timezone(time_zone)).strftime("%Y%m%d%H%M%S") if pid_get == '-1|-1' else pid_get
+        logger.info("pid: {pid}".format(pid=pid))
+    
+        audit_result['process_id'] = pid
+    
+        hwm=get_hwm('cosmos','cosmos_digital_summary_orders')
+        logger.info(f'hwm cosmos_digital_summary_orders: {hwm}'.format(hwm=hwm))
+        hwm='1900-01-01 00:00:00'
+    
+        logger.info("Creating digital summar orders view for incremental data")
+        spark.sql(get_delta_query(hwm))
+        logger.info("get_delta_query finished")  
+        
+        cnt=spark.sql("""select * from digital_summary_orders_vw""").count()
+        logger.info('Insert count is {cnt}'.format(cnt=cnt))
+    
+        logger.info('Reading source data...')
+    
+        src_query =get_pre_cosmos_query(hwm)
+        logger.debug('cosmos_query : ' + src_query)
+    
+        cosmos_df = spark.sql(src_query)
+            
+        logger.debug("Adding audit columns")
+        cosmos_df = add_audit_columns(cosmos_df, pid,datetime.now(),datetime.now())
+    
+        logger.info('Writing to Cosmos: {container_name}'.format(container_name=cosmosContainerName))
+        cosmos_df.write.format("cosmos.oltp").options(**cfg).mode("APPEND").save()
+        
+        logger.info('setting hwm')
+        r=set_hwm('cosmos','cosmos_digital_summary_orders',start_time,pid)
+        logger.info(r)
+    
+        audit_result['numTargetRowsInserted'] = cnt
+        audit_result['end_time'] = datetime.now(tz=timezone(time_zone)).strftime("%Y-%m-%d %H:%M:%S")
+        audit_result['status'] = 'success'   
+        logger.info('Process finished successfully.')
+    
+    except Exception as e:
+        audit_result['status'] = 'failed'
+        audit_result['end_time'] = datetime.now(tz=timezone(time_zone)).strftime("%Y-%m-%d %H:%M:%S")
+        audit_result['ERROR_MESSAGE'] = str(e)
+    
+        raise
+    finally:
+        
+        logger.info("audit_result: {audit_result}".format(audit_result=audit_result))
+        audit(audit_result)
+
+# COMMAND ----------
+
+main()
