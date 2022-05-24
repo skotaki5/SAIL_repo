@@ -10,22 +10,23 @@ headers = {"Authorization": Bearer_token}
 
 # COMMAND ----------
 
-<<<<<<< HEAD
-data = r"""
+
+#data_sail_load = r""" DEV2
+#{
+#        "timeout_seconds": 0,
+#       "email_notifications": {},
+#        "name": "sail_load", DEV2
+
+
+#DEV
+data = r""" 
 {
 
         "name": "sail_load_job_cluster",
         "email_notifications": {
             "no_alert_for_skipped_runs": false
         },
-        "timeout_seconds": 0,
-=======
-data_sail_load = r"""
-{
-        "timeout_seconds": 0,
-        "email_notifications": {},
-        "name": "sail_load",
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+        "timeout_seconds": 0, 
         "schedule": {
             "quartz_cron_expression": "26 15 0/12 * * ?",
             "timezone_id": "UTC",
@@ -34,11 +35,7 @@ data_sail_load = r"""
         "max_concurrent_runs": 1,
         "tasks": [
             {
-<<<<<<< HEAD
                 "task_key": "silver_dim_customer",
-=======
-                "existing_cluster_id": "0414-112418-kc2c53vk",
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
                 "notebook_task": {
                     "notebook_path": "/SAIL/silver/autoloader_transform_bronze_to_silver",
                     "base_parameters": {
@@ -53,21 +50,12 @@ data_sail_load = r"""
                         "tgt_table_name": "dim_customer"
                     }
                 },
-<<<<<<< HEAD
                 "job_cluster_key": "s_job_cluster",
                 "timeout_seconds": 0,
                 "email_notifications": {}
             },
             {
                 "task_key": "silver_dim_warehouse",
-=======
-                "timeout_seconds": 0,
-                "email_notifications": {},
-                "task_key": "silver_dim_customer"
-            },
-            {
-                "existing_cluster_id": "0414-112418-kc2c53vk",
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
                 "notebook_task": {
                     "notebook_path": "/SAIL/silver/autoloader_transform_bronze_to_silver",
                     "base_parameters": {
