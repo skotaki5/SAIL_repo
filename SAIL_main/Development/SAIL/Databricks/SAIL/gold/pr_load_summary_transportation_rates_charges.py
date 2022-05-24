@@ -62,20 +62,12 @@ def get_delta_query(hwm):
         as
          select ups_order_number from {fact_order_dim_inc} where dl_update_timestamp>'{hwm}'
         union 
-<<<<<<< HEAD
           select  case when NVL(FTTR.TRANS_ONLY_FLAG,'NULL') = 'NON_TRANS' and UPS_WMS_ORDER_NUMBER is not null 
                          then  UPS_WMS_ORDER_NUMBER
                          else UPS_ORDER_NUMBER 
                  end as ups_order_number 
           from {fact_transportation} FTTR
             where dl_update_timestamp>='{hwm}'
-=======
-          select UPS_ORDER_NUMBER  from {fact_transportation} FTTR
-          where NVL(FTTR.TRANS_ONLY_FLAG,'NULL')= 'TRANS ONLY'  and UPS_ORDER_NUMBER is not null and dl_update_timestamp>='{hwm}'
-        union 
-          select UPS_WMS_ORDER_NUMBER as UPS_ORDER_NUMBER  from {fact_transportation} FTTR
-            where NVL(FTTR.TRANS_ONLY_FLAG,'NULL') <> 'TRANS ONLY'  and UPS_WMS_ORDER_NUMBER is not null and dl_update_timestamp>='{hwm}'
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
         union
          select UPS_ORDER_NUMBER from {fact_transportation_rates_charges} TREF  where dl_update_timestamp>='{hwm}'
         """.format(**source_tables,hwm=hwm)
@@ -93,34 +85,18 @@ as SELECT
     FTO.GLD_ACCOUNT_MAPPED_KEY,            
     FTO.DP_SERVICELINE_KEY,
 	FTO.DP_ORGENTITY_KEY,
-<<<<<<< HEAD
     FTO.SOURCE_SYSTEM_KEY,             
 	FTO.SOURCE_SYSTEM_NAME,               
-=======
-    WSE.GLD_WAREHOUSE_MAPPED_KEY,             
-    FTO.SOURCE_SYSTEM_KEY,             
-	SS.SOURCE_SYSTEM_NAME,               
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
     FTTR.UPS_ORDER_NUMBER AS UPS_TRANSPORT_ORDER_NUMBER, 
 	FTTR.SOURCE_SYSTEM_KEY AS UPS_TRANSPORT_SOURCE_SYSTEM_KEY,
     FTO.TRANSACTION_TYPE_ID AS TransactionTypeId,
     FTO.IS_MANAGED,
 	FTO.IS_INBOUND,
-<<<<<<< HEAD
     concat(FTO.source_system_key,'||',FTO.order_sduk) as order_sduk,
     concat(FTTR.SOURCE_SYSTEM_KEY,'||',FTTR.TRANSPORTATION_SDUK) as TRANSPORTATION_SDUK
 FROM {fact_order_dim_inc}  FTO  
   INNER JOIN delta_fetch_tv FTV on (FTO.UPS_ORDER_NUMBER = FTV.UPS_ORDER_NUMBER)
 LEFT JOIN {fact_transportation} FTTR  ON (CASE WHEN FTTR.TRANS_ONLY_FLAG <> 'TRANS_ONLY'  THEN   NVL(FTTR.UPS_WMS_SOURCE_SYSTEM_KEY,FTO.SOURCE_SYSTEM_KEY)  ELSE FTTR.SOURCE_SYSTEM_KEY END = FTO.SOURCE_SYSTEM_KEY AND CASE WHEN FTTR.TRANS_ONLY_FLAG <> 'TRANS_ONLY'  THEN FTTR.UPS_WMS_ORDER_NUMBER ELSE FTTR.UPS_ORDER_NUMBER END = FTO.UPS_ORDER_NUMBER)""".format(var_fact_order_summary_tv=var_fact_order_summary_tv,**source_tables))
-=======
-    concat(FTO.source_system_key,'||',FTO.order_sduk) as order_sduk
-FROM {fact_order_dim_inc}  FTO  
-  INNER JOIN delta_fetch_tv FTV on (FTO.UPS_ORDER_NUMBER = FTV.UPS_ORDER_NUMBER)
-INNER JOIN {dim_warehouse}  WSE ON  FTO.WAREHOUSE_KEY = WSE.WAREHOUSE_KEY   
-           AND FTO.SOURCE_SYSTEM_KEY = WSE.SOURCE_SYSTEM_KEY  
-INNER JOIN {dim_source_system}  SS ON SS.SOURCE_SYSTEM_KEY=FTO.SOURCE_SYSTEM_KEY
-LEFT JOIN {fact_transportation} FTTR  ON (CASE WHEN FTTR.TRANS_ONLY_FLAG <> 'TRANS ONLY'  THEN   NVL(FTTR.UPS_WMS_SOURCE_SYSTEM_KEY,FTO.SOURCE_SYSTEM_KEY)  ELSE FTTR.SOURCE_SYSTEM_KEY END = FTO.SOURCE_SYSTEM_KEY AND CASE WHEN FTTR.TRANS_ONLY_FLAG <> 'TRANS ONLY'  THEN FTTR.UPS_WMS_ORDER_NUMBER ELSE FTTR.UPS_ORDER_NUMBER END = FTO.UPS_ORDER_NUMBER)""".format(var_fact_order_summary_tv=var_fact_order_summary_tv,**source_tables))
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
   logger.debug("query : " + q1)
   return(q1)
 
@@ -129,14 +105,10 @@ LEFT JOIN {fact_transportation} FTTR  ON (CASE WHEN FTTR.TRANS_ONLY_FLAG <> 'TRA
 
 # DBTITLE 1,Source query
 def get_query():
-<<<<<<< HEAD
   query=("""
     with temp as 
     (
     SELECT
-=======
-  query=("""SELECT
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
     RC.UPS_ORDER_NUMBER As UpsOrderNumber ,
 	RC.SOURCE_SYSTEM_KEY As SourceSystemKey,
 	RC.LOAD_ID As LOAD_ID,
@@ -154,15 +126,11 @@ def get_query():
     RC.CURRENCY_CODE as CurrencyCode,
     RC.INVOICE_NUMBER as InvoiceNumber,
     FTO.order_sduk,
-<<<<<<< HEAD
     FTO.TRANSPORTATION_SDUK,
-=======
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
     concat(RC.source_system_key,'||',RC.CHARGE_SDUK) as CHARGE_SDUK,
     0 is_deleted
 	FROM {var_fact_order_summary_tv} FTO
 	INNER JOIN {fact_transportation_rates_charges} RC
-<<<<<<< HEAD
 	  ON CASE WHEN IS_INBOUND IN (1,2) THEN FTO.UPS_ORDER_NUMBER ELSE FTO.UPS_TRANSPORT_ORDER_NUMBER END = RC.UPS_ORDER_NUMBER				 
 		     AND CASE WHEN IS_INBOUND IN (1,2) THEN FTO.SOURCE_SYSTEM_KEY ELSE  FTO.UPS_TRANSPORT_SOURCE_SYSTEM_KEY END = RC.SOURCE_SYSTEM_KEY
    )
@@ -172,11 +140,6 @@ def get_query():
                              ) as transport_rn
           from temp t          
    """.format(var_fact_order_summary_tv=var_fact_order_summary_tv,**source_tables))
-=======
-	--ON FTO.UPS_ORDER_NUMBER=RC.UPS_ORDER_NUMBER	AND FTO.SOURCE_SYSTEM_KEY=RC.SOURCE_SYSTEM_KEY
-	  ON CASE WHEN IS_INBOUND IN (1,2) THEN FTO.UPS_ORDER_NUMBER ELSE FTO.UPS_TRANSPORT_ORDER_NUMBER END = RC.UPS_ORDER_NUMBER				 
-		     AND CASE WHEN IS_INBOUND IN (1,2) THEN FTO.SOURCE_SYSTEM_KEY ELSE  FTO.UPS_TRANSPORT_SOURCE_SYSTEM_KEY END = RC.SOURCE_SYSTEM_KEY""".format(var_fact_order_summary_tv=var_fact_order_summary_tv,**source_tables))
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
   logger.debug("query : " + query)
   return(query)
 
@@ -218,11 +181,8 @@ def main():
             logger.info('Reading source data...')
             src_df = spark.sql(source_query)
             ##################### generating hash key  #############################
-<<<<<<< HEAD
-            hash_key_columns = ['SourceSystemKey','UPSOrderNumber','order_sduk','charge_sduk','transport_rn']
-=======
-            hash_key_columns = ['UPSOrderNumber','order_sduk','charge_sduk']
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+            hash_key_columns = ['SourceSystemKey','UPSOrderNumber','order_sduk','charge_sduk','transport_rn'] #DEV
+            #hash_key_columns = ['UPSOrderNumber','order_sduk','charge_sduk'] #DEV2
             logger.debug(f"hash key columns: {hash_key_columns}")
         
             logger.debug("Adding hash_key")
@@ -243,11 +203,8 @@ def main():
             logger.debug("Adding audit columns")
             src_df = add_audit_columns(src_df, pid,datetime.now(),datetime.now())
         
-<<<<<<< HEAD
-            primary_keys = ['SourceSystemKey','UPSOrderNumber','order_sduk','charge_sduk','transport_rn']
-=======
-            primary_keys = ['hash_key']
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
+            primary_keys = ['SourceSystemKey','UPSOrderNumber','order_sduk','charge_sduk','transport_rn'] #DEV2
+            #primary_keys = ['hash_key'] #DEV2
             logger.debug('primary_keys: {primary_keys}'.format(primary_keys=primary_keys))
         
             logger.info(f'Merging to delta path: {digital_summary_transportation_rates_charges_path}')
