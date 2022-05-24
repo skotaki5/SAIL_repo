@@ -56,7 +56,6 @@ def get_delta_query(hwm):
 
 # DBTITLE 1,Query
 def get_query():
-<<<<<<< HEAD
   query = """
     create
     or replace temp view digital_summary_transport_details_stg as
@@ -105,53 +104,11 @@ def get_query():
       Planned_Weight_UOM,
       Actual_Weight_UOM,
       Dimension_UOM""".format(**source_tables)
-=======
-  query = """SELECT 
-       FO.UPS_ORDER_NUMBER   as UPSORDERNUMBER
-	  ,FO.SOURCE_SYSTEM_KEY  as SOURCE_SYSTEM_KEY
-	  ,CL.GLD_ACCOUNT_MAPPED_KEY as Account_ID
-	  ,CL.DP_SERVICELINE_KEY as DP_SERVICELINE_KEY
-	  ,CL.DP_ORGENTITY_KEY as DP_ORGENTITY_KEY
-      ,ITEM_DESCRIPTION as ITEM_DESCRIPTION
-      ,ACTUAL_QTY
-	  ,ACTUAL_UOM
-	  ,ACTUAL_WGT
-	  ,REPLACE(ITEM_DIMENSION,'x','*') AS ITEM_DIMENSION
-	  ,TemperatureRange_Min as TempRangeMin
-	  ,TemperatureRange_Max as TempRangeMax
-	  ,TemperatureRange_UOM as TempRangeUOM
-	  ,TemperatureRange_Code as TempRangeCode
-	  ,Planned_Weight_UOM as PlannedWeightUOM
-	  ,Actual_Weight_UOM as ActualWeightUOM
-	  ,Dimension_UOM as DimensionUOM
-       FROM {fact_transport_details} FT
-INNER JOIN {fact_order_dim_inc} FO ON FO.UPS_ORDER_NUMBER = FT.UPS_ORDER_NUMBER AND FO.SOURCE_SYSTEM_KEY = FT.SOURCE_SYSTEM_KEY
-INNER JOIN delta_fetch_tv FTV on (FO.UPS_ORDER_NUMBER = FTV.UPS_ORDER_NUMBER)
-INNER JOIN {dim_customer} CL ON (FO.CLIENT_KEY = CL.CUSTOMERKEY AND FO.SOURCE_SYSTEM_KEY = CL.SOURCE_SYSTEM_KEY)
-GROUP BY  ITEM_DESCRIPTION
-          ,ACTUAL_QTY
-	      ,ACTUAL_UOM
-	      ,ACTUAL_WGT
-	      ,ITEM_DIMENSION
-	      ,FO.UPS_ORDER_NUMBER
-	      ,CL.GLD_ACCOUNT_MAPPED_KEY
-	      ,CL.DP_SERVICELINE_KEY
-	      ,CL.DP_ORGENTITY_KEY
-	      ,FO.SOURCE_SYSTEM_KEY
-	      ,TemperatureRange_Min
-	      ,TemperatureRange_Max
-	      ,TemperatureRange_UOM
-	      ,TemperatureRange_Code
-	      ,Planned_Weight_UOM
-	      ,Actual_Weight_UOM
-	      ,Dimension_UOM""".format(**source_tables)
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
   logger.debug("query : " + query)
   return(query)
 
 # COMMAND ----------
 
-<<<<<<< HEAD
 # MAGIC %sql 
 
 # COMMAND ----------
@@ -169,14 +126,6 @@ def soft_delete_query():
      where
      exists ( select  1  from temp TV where  t.upsordernumber = TV.upsordernumber
             )
-=======
-# DBTITLE 1,soft_delete_query
-def soft_delete_query():
-  query="""
-      update  {digital_summary_transport_details} t
-      set t.is_deleted =1 
-      where exists ( select 1 from delta_fetch_tv V where t.upsordernumber=V.ups_order_number)
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
       """.format(**source_tables)
   logger.debug("query :"+query)
   return (query)
@@ -207,17 +156,11 @@ def main():
         spark.sql(get_delta_query(hwm))
         logger.info("get_delta_query finished")
         
-<<<<<<< HEAD
         spark.sql(get_query())
         spark.sql("cache table digital_summary_transport_details_stg")
         df = spark.sql("select * from digital_summary_transport_details_stg")
               
         src_df=df.withColumn("is_deleted",lit(0))
-=======
-        df = spark.sql(get_query())
-        src_df=df.withColumn("is_deleted",lit(0))
-     
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
         logger.info("get_query() finished")
         
         spark.sql(soft_delete_query())
@@ -253,11 +196,8 @@ def main():
         mergeToDelta(src_df,digital_summary_transport_details_path,primary_keys)
         logger.info(f'merging to delta path finished: {digital_summary_transport_details_path}')
         
-<<<<<<< HEAD
         spark.sql("uncache  table if exists digital_summary_transport_details_stg")
         
-=======
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
         logger.info('setting hwm')
         res=set_hwm('gold',digital_summary_transport_details_et,start_time,pid)
         logger.info(res)
