@@ -102,13 +102,8 @@ FROM {digital_summary_orders} O
 INNER JOIN {digital_summary_onboarded_systems} OS ON OS.sourcesystemkey = o.SourceSystemKey
 INNER JOIN (SELECT DISTINCT UPSOrderNumber from change_stg) c ON o.UPSOrderNumber = c.UPSOrderNumber
     where o.DateTimeReceived >= case when date('{hwm}') = '1900-01-01' then current_date else date('{hwm}') end - {days_back}
-<<<<<<< HEAD
     --and AccountId in {account_id}
         """.format(**source_tables,hwm=hwm,days_back=days_back,account_id=account_id)
-=======
-    --account_id filter removed
-        """.format(**source_tables,hwm=hwm,days_back=days_back)
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
     logger.debug("query : " + query)
     return(query)
 
