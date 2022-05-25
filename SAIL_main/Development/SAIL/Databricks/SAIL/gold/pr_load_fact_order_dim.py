@@ -2,11 +2,7 @@
 # MAGIC %md
 # MAGIC <b>Versions</b>          
 # MAGIC v0.1  GD000012733@ups.com Vishal           
-<<<<<<< HEAD
 # MAGIC v0.2  GD000012780@ups.com Prashant Gupta  
-=======
-# MAGIC v0.2  GD000012780@ups.com Prashant Gupta    
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 # MAGIC V1.0  added new columns TT_IS_MANAGED,tt_is_inbound   by @Arpan
 
 # COMMAND ----------
