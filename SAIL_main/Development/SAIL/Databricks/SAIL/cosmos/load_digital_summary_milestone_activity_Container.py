@@ -75,12 +75,8 @@ def get_delta_query(hwm):
          or
          is_deleted =  case when date('{hwm}') = '1900-01-01' then -1 else  1 end 
          )
-<<<<<<< HEAD
          --and AccountId in  {account_id}
         """.format(**source_tables,hwm=hwm,days_back=days_back,account_id=account_id)
-=======
-        """.format(**source_tables,hwm=hwm,days_back=days_back)
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
   logger.debug("query : " + query)
   return(query)
 
@@ -135,14 +131,9 @@ INNER JOIN (select DSO.UpsOrderNumber,DSO.SourceSystemKey,is_inbound,
            'CarrierName', DSO.Carrier,
            'shipmentServiceLevel', DSO.ServiceLevel,
            'shipmentServiceLevelCode', DSO.ServiceLevelCode,
-<<<<<<< HEAD
             'Account_number',DSO.Account_Number)
            ) AS CarrierServiceDetails
            
-=======
-           'Account_number',DSO.Account_number)
-           ) AS CarrierServiceDetails
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
         from {digital_summary_orders} DSO
         inner join {digital_summary_onboarded_systems} OS on DSO.SourceSystemKey = OS.SourceSystemKey
         group by DSO.UPSOrderNumber,DSO.SourceSystemKey,is_inbound
@@ -174,19 +165,11 @@ def main():
     audit_result['process_id'] = pid
     
     hwm=get_hwm('cosmos','cosmos_digital_summary_milestone_activity')
-<<<<<<< HEAD
     #hwm='2022-03-27 09:55:43'
     #if hwm=='1900-01-01 00:00:00':
     #    d = timedelta(days = 90)
     #    back_date=st_dt - d
     #    hwm=back_date.strftime("%Y-%m-%d %H:%M:%S")
-=======
-    #hwm='1900-01-01 00:00:00'
-#     if hwm=='1900-01-01 00:00:00':
-#       d = timedelta(days = 90)
-#       back_date=st_dt - d
-#       hwm=back_date.strftime("%Y-%m-%d %H:%M:%S")
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
     logger.info(f'hwm cosmos_digital_summary_milestone_activity: {hwm}'.format(hwm=hwm))
     
     logger.info("Creating digital summar milestone activity view for incremental data")
