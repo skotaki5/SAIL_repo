@@ -41,10 +41,6 @@ else:
 # COMMAND ----------
 
 # DBTITLE 1,Source query
-<<<<<<< HEAD
-=======
-
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 def get_query(hwm,days_back):
   logger.debug("hwm: " + str(hwm))
   query =("""SELECT FTO.UPS_ORDER_NUMBER
@@ -236,8 +232,4 @@ def main():
 
 # COMMAND ----------
 
-<<<<<<< HEAD
 main()
-=======
-main()
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
