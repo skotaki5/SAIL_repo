@@ -2,11 +2,8 @@
 """
 Author           : Prashant Gupta
 Description      : this notebook is to load digital_summary_inventory cosmos container.
-<<<<<<< HEAD
 
 Vinoth : version 1.1 -- Cosmos RU restriction logic
-=======
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 """
 
 # COMMAND ----------
@@ -43,7 +40,6 @@ cfg = {
   "spark.cosmos.accountKey" : cosmosMasterKey,
   "spark.cosmos.database" : cosmosDatabaseName,
   "spark.cosmos.container" : cosmosContainerName,
-<<<<<<< HEAD
   "spark.cosmos.write.strategy": "ItemOverwrite",
   "spark.cosmos.write.bulk.enabled": "true",
   "spark.cosmos.throughputControl.enabled": "true",
@@ -51,15 +47,6 @@ cfg = {
   "spark.cosmos.throughputControl.targetThroughputThreshold": "0.9",
   "spark.cosmos.throughputControl.globalControl.database": controlCosmosDatabaseName,
   "spark.cosmos.throughputControl.globalControl.container": controlCosmosContainerName
-=======
-#   "spark.cosmos.write.strategy": "ItemOverwrite",
-#   "spark.cosmos.write.bulk.enabled": "true",
-#   "spark.cosmos.throughputControl.enabled": "true",
-#   "spark.cosmos.throughputControl.name": "inventory_throughput_control",
-#   "spark.cosmos.throughputControl.targetThroughputThreshold": "0.9",
-#   "spark.cosmos.throughputControl.globalControl.database": controlCosmosDatabaseName,
-#   "spark.cosmos.throughputControl.globalControl.container": controlCosmosContainerName
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
 }
 
 
