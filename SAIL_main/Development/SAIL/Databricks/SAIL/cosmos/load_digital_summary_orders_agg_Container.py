@@ -221,34 +221,4 @@ def main():
 
 # COMMAND ----------
 
-<<<<<<< HEAD
 main()
-=======
-main()
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC select distinct AccountId from gold.digital_summary_orders where dl_update_timestamp>='2022-04-01 10:31:03'
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC select dl_file_name,count(*)
-# MAGIC from silver.fact_order --where dl_update_timestamp>='2022-04-01 10:31:03'
-# MAGIC group by dl_file_name
-# MAGIC order by 1 desc
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC select dl_file_name,count(*)
-# MAGIC from silver.fact_order_line
-# MAGIC group by dl_file_name
-# MAGIC order by 1 desc
-
-# COMMAND ----------
-
-# MAGIC %sh
-# MAGIC ls -lrt /dbfs/mnt/sail/bronze/gld360/inbound/landing/fact_order/
->>>>>>> c38a47b (Importing Dev2 code to dev2 branch)
